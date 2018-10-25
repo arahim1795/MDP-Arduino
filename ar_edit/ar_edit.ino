@@ -1,52 +1,65 @@
-#include <DualVNH5019MotorShield.h>
+#include <SharpIR.h>
+
 #include <PinChangeInterrupt.h>
+#include <PinChangeInterruptBoards.h>
+#include <PinChangeInterruptPins.h>
+#include <PinChangeInterruptSettings.h>
+
+#include <DualVNH5019MotorShield.h>
 #include <PID_v1.h>
 #include <stdio.h>
 #include <math.h>
-#include <SharpIR.h>
 
 // Legacy include
 /*
-#include <EnableInterrupt.h>
-#include <RunningMedian.h>
+  #include <EnableInterrupt.h>
+  #include <RunningMedian.h>
 */
 
 // Definitions
 // encoderpin1a
-#define outputA 3
+#define outputA 11 // 3
 // encoderpin1b
-#define outputB 5
+#define outputB 13 // 5
 // encoderpin2a
-#define inputA 11
+#define inputA 3 // 11
 // encoderpin2b
-#define inputB 13
+#define inputB 5 // 13
 
 #define irFR A0
 #define irFM A1
 #define irFL A2
 #define irLB A3
 #define irLM A4
-#define irRLong A5
+#define irLong A5
 
 #define modelS 1080
 #define modelR 20150
 
 /*
-#define PWM_MIN (60)
-#define PWM_MAX (100)
-#define turnErrorRate 1.11
-#define distanceErrorRate 1.03\
+  #define PWM_MIN (60)
+  #define PWM_MAX (100)
+  #define turnErrorRate 1.11
+  #define distanceErrorRate 1.03\
 */
 
 // Specifications
-DualVNH5019MotorShield md;
+
+DualVNH5019MotorShield* md;
+SharpIR sFR(irFR, modelS); // instantiation of sensors //DO NOT CHANGE
+SharpIR sFM(irFM, modelS);
+SharpIR sFL(irFL, modelS);
+SharpIR sLM(irLM, modelS);
+SharpIR sLB(irLB, modelS);
+SharpIR sLong(irLong, modelR);
+
 /*
-SharpIR sr1 =  SharpIR(irFR, modelS); //instantiation of sensors //DO NOT CHANGE
-SharpIR sr2 =  SharpIR(irFM, modelS);
-SharpIR sr3 =  SharpIR(irFL, modelS);
-SharpIR sr4 =  SharpIR(irRM, modelS);
-SharpIR sr5 =  SharpIR(irLM, modelS);
-SharpIR sr6 = SharpIR(irRLong, modelR);
+  SharpIR sr1 =  SharpIR(irFR, modelS); //instantiation of sensors //DO NOT CHANGE
+  SharpIR sr2 =  SharpIR(irFM, modelS);
+  SharpIR sr3 =  SharpIR(irFL, modelS);
+  SharpIR sr4 =  SharpIR(irRM, modelS);
+  SharpIR sr5 =  SharpIR(irLM, modelS);
+  SharpIR sr6 = SharpIR(irRLong, modelR);
 */
 
 // Fields
@@ -61,49 +74,53 @@ double difference;
 double Setpoint, Input, Output;
 int calibrateMother = 0;
 
+String data;
+char instruction;
+int charposition = 5;
+
 /*
-long volatile ticksmoved1 = 0;
-long volatile ticksmoved2 = 0;
+  long volatile ticksmoved1 = 0;
+  long volatile ticksmoved2 = 0;
 
-unsigned long volatile currentpulsetime1 = 0.0;
-unsigned long volatile currentpulsetime2 = 0.0;
+  unsigned long volatile currentpulsetime1 = 0.0;
+  unsigned long volatile currentpulsetime2 = 0.0;
 
-unsigned long previoustime1 = 0;
-unsigned long previoustime2 = 0;
+  unsigned long previoustime1 = 0;
+  unsigned long previoustime2 = 0;
 */
 
 /*
-/* -------------- PID --------------------
-// Right wheel PID
-double rkp = 0.4033; //0.5633 and 0.4033
-double rki = 0.8219;
-double rkd = 0;
+  /* -------------- PID --------------------
+  // Right wheel PID
+  double rkp = 0.4033; //0.5633 and 0.4033
+  double rki = 0.8219;
+  double rkd = 0;
 
-// Left Wheel PID
-double lkp = 0.8184; //8124 and 8184 //8504
-double lki = 0.8820;
-double lkd = 0;
+  // Left Wheel PID
+  double lkp = 0.8184; //8124 and 8184 //8504
+  double lki = 0.8820;
+  double lkd = 0;
 
-double volatile Rpwm;
-double volatile Lpwm;
-double volatile cur_Rrpm;
-double volatile cur_Lrpm;
-double volatile Rrpm = 80;//setpoint
-double volatile Lrpm = 80;//setpoint
-double volatile out_Rrpm;
-double volatile out_Lrpm;
-double volatile Lspeed;
-double volatile Rspeed;
+  double volatile Rpwm;
+  double volatile Lpwm;
+  double volatile cur_Rrpm;
+  double volatile cur_Lrpm;
+  double volatile Rrpm = 80;//setpoint
+  double volatile Lrpm = 80;//setpoint
+  double volatile out_Rrpm;
+  double volatile out_Lrpm;
+  double volatile Lspeed;
+  double volatile Rspeed;
 
-PID rightPID(&cur_Rrpm, &out_Rrpm, &Rrpm, rkp, rki, rkd, DIRECT);
-PID leftPID(&cur_Lrpm, &out_Lrpm, &Lrpm, lkp, lki, lkd, DIRECT);
-/* ---- END OF RPM ----
+  PID rightPID(&cur_Rrpm, &out_Rrpm, &Rrpm, rkp, rki, rkd, DIRECT);
+  PID leftPID(&cur_Lrpm, &out_Lrpm, &Lrpm, lkp, lki, lkd, DIRECT);
+  /* ---- END OF RPM ----
 
-/* -------------- Radius --------------------
-#define wheelRadius 5.75 // cm
-#define distanceBtwWheel 19.0 // cm
-#define PI 3.1415926535897932384626433832795
-/* -------------- END OF Radius --------------------
+  /* -------------- Radius --------------------
+  #define wheelRadius 5.75 // cm
+  #define distanceBtwWheel 19.0 // cm
+  #define PI 3.1415926535897932384626433832795
+  /* -------------- END OF Radius --------------------
 */
 
 double computePID() {
@@ -132,7 +149,7 @@ void setup() {
 
   /* ---- motor encoder settings ---- */
   md = new DualVNH5019MotorShield();
-  md.init();
+  md->init();
 
   pinMode(outputA, INPUT);
   pinMode(outputB, INPUT);
@@ -144,10 +161,10 @@ void setup() {
   // enableInterrupt(encoderpin2a, encoder2change, RISING);
 
   /* ---- PID settings ----
-  rightPID.SetMode(AUTOMATIC);
-  rightPID.SetOutputLimits(PWM_MIN, PWM_MAX);
-  leftPID.SetMode(AUTOMATIC);
-  leftPID.SetOutputLimits(PWM_MIN, PWM_MAX);
+    rightPID.SetMode(AUTOMATIC);
+    rightPID.SetOutputLimits(PWM_MIN, PWM_MAX);
+    leftPID.SetMode(AUTOMATIC);
+    leftPID.SetOutputLimits(PWM_MIN, PWM_MAX);
   */
 
 }
@@ -162,54 +179,54 @@ void outputBInc(void) {
 }
 
 void moveForward(int numOfGrid) {
-   int forwardClimb = 300;
-   int testClimb = 150;
-   int initialSpeed = 0;
-   int pid;
-   counterA = 0;
-   counterB = 0;
-   counterC = 0;
-   int target_tick = 560; //Trial and Error
+  int forwardClimb = 300;
+  int testClimb = 150;
+  int initialSpeed = 0;
+  int pid;
+  counterA = 0;
+  counterB = 0;
+  counterC = 0;
+  int target_tick = 560; //Trial and Error
 
-   if(numOfGrid > 1) {
-     target_tick  = 592;
-   }
+  if (numOfGrid > 1) {
+    target_tick  = 592;
+  }
 
-   while (counterC < target_tick * numOfGrid) {
+  while (counterC < target_tick * numOfGrid) {
     pid = computePID();
 
-    if(counterC<200) {
-      md.setSpeeds(counterC+150-pid,counterC+150+pid); //270
-    } else if(counterC >target_tick -200) {
-      md.setSpeeds(counterC-150-pid,counterC-150+pid); //270
+    if (counterC < 200) {
+      md->setSpeeds(counterC + 150 - pid, counterC + 150 + pid); //270
+    } else if (counterC > target_tick - 200) {
+      md->setSpeeds(counterC - 150 - pid, counterC - 150 + pid); //270
     } else {
-      md.setSpeeds(forwardClimb-pid,forwardClimb+pid); //270
+      md->setSpeeds(forwardClimb - pid, forwardClimb + pid); //270
     }
   }
   counterC = 0;
-  md.setBrakes(400,400);
+  md->setBrakes(400, 400);
 
- /* while(initialSpeed < forwardClimb) {
-         while (counterC < target_tick * numOfGrid) {
-          initialSpeed = initialSpeed + 50;
-            if((counterB%30) == 0){
-              counterB++;
-            }
-            pid = computePID();
-            md->setSpeeds(initialSpeed-pid,initialSpeed+pid);
+  /* while(initialSpeed < forwardClimb) {
+          while (counterC < target_tick * numOfGrid) {
+           initialSpeed = initialSpeed + 50;
+             if((counterB%30) == 0){
+               counterB++;
+             }
+             pid = computePID();
+             md->setSpeeds(initialSpeed-pid,initialSpeed+pid);
 
-        }
-        break;
-  }
+         }
+         break;
+    }
 
-  counterC = 0;
-  md->setBrakes(350,370);
+    counterC = 0;
+    md->setBrakes(350,370);
   */
 }
 
 // Legacy Forward
 /*
-void forward(int distance) {
+  void forward(int distance) {
   resetEncoder();
   double wheelcircumference, distance_traveled2, distance_traveled1, distanceT;
   wheelcircumference = 2.0 * PI * (wheelRadius / 2);
@@ -227,18 +244,18 @@ void forward(int distance) {
     distanceT = (distance_traveled1 + distance_traveled2) / 2 * distanceErrorRate; // Total distance
   }  while (distanceT < (distance));
   md.setBrakes(400, 400);
-}
+  }
 */
 
 /*
-String data;
-char instruction;
-int charposition = 5;
+  String data;
+  char instruction;
+  int charposition = 5;
 */
 
-// Fastest Path
+// Legacy Fastest Path
 /*
-void fastestPath() {
+  void fastestPath() {
   // send to android feedback -- done
   while (1) {
     if (Serial.available() > 0) {
@@ -270,12 +287,12 @@ void fastestPath() {
       break;
     }
   }
-}
+  }
 */
 
 // Legacy Backward
 /*
-void backward(int distance) {
+  void backward(int distance) {
   resetEncoder();
   double wheelcircumference, distance_traveled2, distance_traveled1, distanceT;
   wheelcircumference = 2.0 * PI * (wheelRadius / 2);
@@ -293,7 +310,7 @@ void backward(int distance) {
     distanceT = (distance_traveled1 + distance_traveled2) / 2 * distanceErrorRate;
   }  while (distanceT < (distance));
   md.setBrakes(400, 400);
-}
+  }
 */
 
 void turnLeft(void) {
@@ -303,23 +320,23 @@ void turnLeft(void) {
   counterC = 0;
   int target_tick = 757;
 
-  while(counterC < target_tick) {
+  while (counterC < target_tick) {
     int pid = computePID();
 
-    if(counterC > target_tick-200) {
-      md.setSpeeds(-counterC-200+pid,counterC-200+pid); //270
+    if (counterC > target_tick - 200) {
+      md->setSpeeds(-counterC - 200 + pid, counterC - 200 + pid); //270
     } else {
-      md.setSpeeds(-forwardClimb+pid,forwardClimb+pid );
+      md->setSpeeds(-forwardClimb + pid, forwardClimb + pid );
     }
   }
 
-  md.setBrakes(400 ,400);
+  md->setBrakes(400 , 400);
   counterC = 0;
 }
 
 // Legacy Left
 /*
-void turnLeft(double degree) {
+  void turnLeft(double degree) {
   resetEncoder();
   float circumference, distanceToTurn, wheelC, cmPerTick, tickToTurn , newtick;
   // https://www.robotshop.com/community/forum/t/trouble-getting-redbot-to-turn-using-encoders/12411/2);
@@ -343,7 +360,7 @@ void turnLeft(double degree) {
   }
   while (abs(ticksmoved2) < newtick || abs(ticksmoved1) < newtick);
   md.setBrakes(400, 400);
-}
+  }
 */
 
 void turnRight(void) {
@@ -353,23 +370,23 @@ void turnRight(void) {
   counterC = 0;
   int target_tick = 763; //800 keagan
 
-  while(counterC < target_tick) {
+  while (counterC < target_tick) {
     int pid = computePID();
 
-    if(counterC > target_tick-200) {
-      md.setSpeeds(counterC-200-pid,-counterC-200-pid);//270
+    if (counterC > target_tick - 200) {
+      md->setSpeeds(counterC - 200 - pid, -counterC - 200 - pid); //270
     } else {
-      md.setSpeeds(forwardClimb-pid,-forwardClimb-pid);
+      md->setSpeeds(forwardClimb - pid, -forwardClimb - pid);
     }
   }
 
-  md-> setBrakes(400 ,400);
+  md->setBrakes(400 , 400);
   counterC = 0;
 }
 
- // Legacy Right
+// Legacy Right
 /*
-void turnRight(double degree) {
+  void turnRight(double degree) {
    resetEncoder();
    float circumference, distanceToTurn, wheelC, cmPerTick, tickToTurn , newtick;
    // https://www.robotshop.com/community/forum/t/trouble-getting-redbot-to-turn-using-encoders/12411/2);
@@ -393,8 +410,8 @@ void turnRight(double degree) {
    }
    while (abs(ticksmoved2) < newtick || abs(ticksmoved1) < newtick);
    md.setBrakes(400, 400);
- }
- */
+  }
+*/
 
 float getReading(int IRpin) {
   float valueArray[31];
@@ -405,8 +422,8 @@ float getReading(int IRpin) {
     i++;
   }
 
-  qsort(valueArray,31,sizeof(valueArray[0]), sort_desc);
-  return valueArray[31/2];
+  qsort(valueArray, 31, sizeof(valueArray[0]), sort_desc);
+  return valueArray[31 / 2];
 }
 
 static int sort_desc(const void *cmp1, const void *cmp2) {
@@ -418,13 +435,13 @@ static int sort_desc(const void *cmp1, const void *cmp2) {
 
 // Legacy Sensor Sampling
 /*
-float getMedianDistance(int IRpin, int model) {
+  float getMedianDistance(int IRpin, int model) {
   RunningMedian samples = RunningMedian(30);             //take 20 samples of sensor reading
   for (int i = 0; i < 30; i ++)
     samples.add(readSensor(IRpin, model));      //samples call readSensor() to read in sensor value
   float median = samples.getMedian();
   return median;
-}
+  }
 */
 
 float processSense(int IRpin, int model) {
@@ -432,39 +449,39 @@ float processSense(int IRpin, int model) {
   float value, adjValue;
 
   // Front Right
-  if (IRPin == 14) {
+  if (IRpin == 14) {
     value = (5666.9 / tmp) - 4.4813;
     return value;
   }
 
   // Front Centre
-  if (IRPin == 15) {
+  if (IRpin == 15) {
     value = (5630.4 / tmp) - 3.9969;
     return value;
   }
 
   // Front Left
-  if (IRPin == 16) {
+  if (IRpin == 16) {
     value = (5284.7 / tmp) - 4.095;
     return value;
   }
 
   // Left Back
-  if (IRPin == 17) {
+  if (IRpin == 17) {
     value = (5139.1 / tmp) - 2.1157;
     adjValue = (0.9449 * value) + 0.4124;
     return adjValue;
   }
 
   // Left front
-  if (IRPin == 18) {
+  if (IRpin == 18) {
     value = (5074.8 / tmp) - 1.96989;
     adjValue = (0.8925 * value) + 0.9597;
     return adjValue;
   }
 
   if (model == modelR) {
-    value = (12101 / sensorValue) - 2.8711;
+    value = (12101 / tmp) - 2.8711;
     return value;
   }
 
@@ -472,7 +489,7 @@ float processSense(int IRpin, int model) {
 
 // Legacy readSensor
 /*
-float readSensor(void) {
+  float readSensor(void) {
    float distance, correctdistance;
    float sensorValue = analogRead(IRpin);
    if (model == 1080 ) {
@@ -507,7 +524,7 @@ float readSensor(void) {
      //correctdistance = 0.9697 * distance + 1.0893;
      return distance;
    }
- }
+  }
 */
 
 void getSensorData(void) {
@@ -516,7 +533,7 @@ void getSensorData(void) {
   float frontL = processSense(irFL, modelS);
   float leftBack = processSense(irLB, modelS);
   float left = processSense(irLM, modelS);
-  float longrange = processSense(irRLong, modelR);
+  float longrange = processSense(irLong, modelR);
 
   // format: frontL_frontM_frontR_left_LeftBack_longrange;
   Serial.print("P;SDATA;");
@@ -535,7 +552,7 @@ void getSensorData(void) {
 
 // Legacy Sensor Data
 /*
-String getSensorData() {
+  String getSensorData() {
   String frontR = String(getMedianDistance(irFR, 1080));
   String frontM = String(getMedianDistance(irFM, 1080));
   String frontL = String(getMedianDistance(irFL, 1080));
@@ -545,12 +562,13 @@ String getSensorData() {
 
   //return frontL+"_"+frontM+"_"+frontR+"_"+left+"_"+righ+"_"+longrange;
   return "P;SDATA;" + frontL + "_" + frontM + "_" + frontR + "_" + left + "_" + right + "_" + longrange;
-}
+  }
 */
 
 // TODO: implement calibrate
 void loop() {
-  readAndRun();
+  // readAndRun();
+  testRun();
   delay(120);
   exit(0);
 }
@@ -563,7 +581,7 @@ void readAndRun() {
       data = Serial.readString();
       instruction = data.charAt(7);
 
-      switch(instruction) {
+      switch (instruction) {
         case 'F':
           // move forward
           moveForward(1);
@@ -575,7 +593,7 @@ void readAndRun() {
           delay(120);
           turnLeft();
           delay(120);
-          moveForward();
+          moveForward(1);
           delay(120);
           break;
         case 'L':
@@ -599,12 +617,12 @@ void readAndRun() {
           endPhase = true;
           break;
         default:
-          flag = false;
+          sendData = false;
           Serial.println("Error");
       }
 
       if (sendData) {
-        Serial.println(getSensorData());
+        getSensorData();
       }
 
       if (endPhase) {
@@ -613,12 +631,68 @@ void readAndRun() {
     }
   }
   delay(10);
-  fastestPath();
+  // fastestPath();
+}
+
+void testRun() {
+   boolean sendData = true;
+  boolean endPhase = false;
+  while (1) {
+  data = Serial.readString();
+      instruction = data.charAt(7);
+
+      switch (instruction) {
+        case 'F':
+          // move forward
+          moveForward(1);
+          delay(120);
+          break;
+        case 'B':
+          // move backwards
+          turnLeft();
+          delay(120);
+          turnLeft();
+          delay(120);
+          moveForward(1);
+          delay(120);
+          break;
+        case 'L':
+          // turn left
+          turnLeft();
+          delay(120);
+          break;
+        case 'R':
+          // turn right
+          turnRight();
+          delay(120);
+          break;
+        case 'S':
+          // calibrate
+          calibrate(true);
+          calibrateMother = 0;
+          delay(120);
+          break;
+        case 'E':
+          // end step-by-step exec
+          endPhase = true;
+          break;
+        default:
+          sendData = false;
+          Serial.println("Error");
+      }
+       
+      getSensorData();
+
+      if (endPhase) {
+        break;
+      }
+    }
+  delay(120);
 }
 
 // Legacy Exec
 /*
-void readAndRun() {
+  void readAndRun() {
   while (1) {
     if (Serial.available() > 0) {
       data = Serial.readString();
@@ -659,7 +733,7 @@ void readAndRun() {
   }
   delay(10);
   fastestPath();
-}
+  }
 */
 
 // Calibration Functions
@@ -672,12 +746,12 @@ void tiltLeft(void) {
   int forwardClimb = 200; //100 keagan
   int target_tick = tiltLeftAngle * 4.5; //4.5 keagan
 
-  while(counterC < target_tick) {
+  while (counterC < target_tick) {
     int pid = computePID();
-    md.setSpeeds(-forwardClimb+pid, forwardClimb+pid);
+    md->setSpeeds(-forwardClimb + pid, forwardClimb + pid);
   }
 
-  md.setBrakes(400,400);
+  md->setBrakes(400, 400);
   counterC = 0;
 }
 
@@ -690,29 +764,29 @@ void tiltRight(void) {
   int forwardClimb = 200; //100 keagan
   int target_tick = tiltRightAngle * 4.5; //keagan
 
-  while(counterC < target_tick) {
+  while (counterC < target_tick) {
     int pid = computePID();
-    md.setSpeeds(forwardClimb-pid, -forwardClimb-pid);
+    md->setSpeeds(forwardClimb - pid, -forwardClimb - pid);
   }
 
-  md.setBrakes(400,400);
+  md->setBrakes(400, 400);
   counterC = 0;
 }
 
-void calibrate(boolean pos){
+void calibrate(boolean pos) {
   int calibrationCounter = 0;
   int calibrate1, calibrate3;
   double offset = 0.7;
 
   while (true) {
-    calibrate1 = irLB.distance(); //getSensorReading1();
-    calibrate3 = irLM.distance(); //getSensorReading3();
+    calibrate1 = sLB.distance(); //getSensorReading1();
+    calibrate3 = sLM.distance(); //getSensorReading3();
     // Serial.println(calibrate1);
     // Serial.println(calibrate3);
     // return;
     if (abs((calibrate3 - offset) - calibrate1) <= 0.4) { // keagan
-    // Serial.println("End Condition Met");
-      if(pos) {
+      // Serial.println("End Condition Met");
+      if (pos) {
         adjustPosition();
       }
       delay(50);
@@ -726,7 +800,7 @@ void calibrate(boolean pos){
     // adjustPosition();
     // break;
     // }
-    if(calibrate3 < (calibrate1 + offset)) {
+    if (calibrate3 < (calibrate1 + offset)) {
       // Serial.println("Tilting right");
       tiltRight();
       delay(50);
@@ -752,12 +826,12 @@ void adjustPosition(void) {
   int tempAdjust2;
   int forwardClimb = 150; //100 keagan
 
-  while(true){
-    tempAdjust1 = irLM.distance();
+  while (true) {
+    tempAdjust1 = sLM.distance();
     // Serial.println(tempAdjust3);
     // return;
     if (abs(tempAdjust1 - 10)  <= 0 ) {
-      md.setBrakes(400,400);
+      md->setBrakes(400, 400);
       break;
     }
     // if (calibrateMother > 40 ) {
@@ -769,10 +843,10 @@ void adjustPosition(void) {
 
       while (counterC < target_tick) {
         int pid = computePID();
-        md.setSpeeds((-forwardClimb)+pid,(-forwardClimb)-pid);//270
+        md->setSpeeds((-forwardClimb) + pid, (-forwardClimb) - pid); //270
       }
 
-      md.setBrakes(400,400);
+      md->setBrakes(400, 400);
       counterC = 0;
       // calibrateMother++;//keagan
       adjustCounter++;
@@ -782,10 +856,10 @@ void adjustPosition(void) {
 
       while (counterC < target_tick) {
         int pid = computePID();
-        md.setSpeeds(forwardClimb-pid,forwardClimb+pid); //270
+        md->setSpeeds(forwardClimb - pid, forwardClimb + pid); //270
       }
 
-      md.setBrakes(400,400);
+      md->setBrakes(400, 400);
       counterC = 0;
       // calibrateMother++; //keagan
       adjustCounter++;
@@ -795,7 +869,7 @@ void adjustPosition(void) {
 
 // Legacy Calibration
 /*
-void CornerCalibrate() {
+  void CornerCalibrate() {
   alignFront();
   delay(100);
   turnLeft(90);
@@ -808,9 +882,9 @@ void CornerCalibrate() {
   delay(100);
   turnRight(90);
   delay(100);
-}
+  }
 
-void RightCalibrate() {
+  void RightCalibrate() {
   delay(50);
   turnRight(90);
   delay(50);
@@ -819,9 +893,9 @@ void RightCalibrate() {
   turnLeft(90);
   delay(50);
 
-}
+  }
 
-void LeftCalibrate() {
+  void LeftCalibrate() {
   delay(50);
   turnLeft(90);
   delay(50);
@@ -830,9 +904,9 @@ void LeftCalibrate() {
   turnRight(90);
   delay(50);
 
-}
+  }
 
-void alignFront() {
+  void alignFront() {
   int mdspeed = 80;
   int sensorError;
   int sensorErrorAllowance = 0;
@@ -876,12 +950,12 @@ void alignFront() {
   //    }
   //    md.setBrakes(400, 400);
 
-}
+  }
 */
 
 // Legacy Encoder
 /*
-void encoder1change() {
+  void encoder1change() {
   if (digitalRead(encoderpin1b) == LOW)
   {
     ticksmoved1++;
@@ -892,9 +966,9 @@ void encoder1change() {
   }
   currentpulsetime1 = micros() - previoustime1;
   previoustime1 = micros();
-}
+  }
 
-void encoder2change() {
+  void encoder2change() {
   if (digitalRead(encoderpin2b) == LOW)
   {
     ticksmoved2++;
@@ -905,26 +979,26 @@ void encoder2change() {
   }
   currentpulsetime2 = micros() - previoustime2;
   previoustime2 = micros();
-}
+  }
 
-double volatile getRPM1() {
+  double volatile getRPM1() {
   if (currentpulsetime1 == 0)
   {
     return 0;
   }
   return 60000 / (((currentpulsetime1) / 1000.0) * 562.25);
-}
+  }
 
-double volatile getRPM2() {
+  double volatile getRPM2() {
   if (currentpulsetime2 == 0)
   {
     return 0;
   }
   return 60000 / (((currentpulsetime2) / 1000.0) * 562.25);
-}
+  }
 
-void resetEncoder() {
+  void resetEncoder() {
   ticksmoved1 = 0;
   ticksmoved2 = 0;
-}
+  }
 */

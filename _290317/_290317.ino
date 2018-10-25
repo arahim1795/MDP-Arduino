@@ -1,4 +1,3 @@
-/*
 #include "DualVNH5019MotorShield.h"
 #include "PinChangeInterrupt.h"
 #include "PID_v1.h"
@@ -13,11 +12,11 @@
 #define outputB 5 //encoder output for right motor M2
 #define inputB 10 //right motor speed input
 
-#define s1 A1 //mapping analog pins on arduino //DO NOT CHANGE UNLESS NECESSARY
-#define s2 A2
-#define s3 A3
-#define s4 A4
-#define s5 A5
+#define s1 A0 //mapping analog pins on arduino //DO NOT CHANGE UNLESS NECESSARY
+#define s2 A1
+#define s3 A2
+#define s4 A3
+#define s5 A4
 
 #define model 1080
 
@@ -26,7 +25,7 @@ SharpIR sr2 =  SharpIR(s2, model);
 SharpIR sr3 =  SharpIR(s3, model);
 SharpIR sr4 =  SharpIR(s4, model);
 SharpIR sr5 =  SharpIR(s5, model);
-*/
+
 
 const int s1r[] = {306, 203, 148}; //
 const int s2r[] = {387, 228, 160}; //
@@ -253,9 +252,10 @@ int getSensorReading5(void){
 
 }
 
-static int intCompareFn( void * arg1, void * arg2) {
-  int * a = (int *)arg1;
-  int * b = (int *)arg2;
+static int intCompareFn(const void* arg1, const void* arg2) {
+  
+  const int *a = (int*) arg1;
+  const int *b = (int*) arg2;
 
   if (*a < *b)
     return -1;
